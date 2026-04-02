@@ -1,16 +1,16 @@
-pub const NX_DEVICE_ID_LEN: u8 = 16;
-pub const NX_VENDOR_ID: u16 = 0x0955;
-pub const NX_PRODUCT_ID: u16 = 0x7321;
-pub const NX_USB_INTERFACE: u8 = 0;
-pub const DEFAULT_USB_TIMEOUT_MS: u16 = 1000;
-pub const USB_PACKET_SIZE: usize = 0x1000;
+pub const NX_DEVICE_ID_LEN = 16;
+pub const NX_VENDOR_ID = 0x0955;
+pub const NX_PRODUCT_ID = 0x7321;
+pub const NX_USB_INTERFACE = 0;
+pub const DEFAULT_USB_TIMEOUT_MS = 1000;
+pub const USB_PACKET_SIZE = 0x1000;
 
-pub const RCM_LENGTH: u32 = 0x30298;
-pub const RCM_PAYLOAD_ADDR: u32 = 0x40010000;
-pub const HEADER_OFFSET: u32 = 0x2A8;
-pub const INTERMEZZO_ADDR: u32 = 0x4001F000;
-pub const PAYLOAD_LOAD_BLOCK: u32 = 0x40020000;
-pub const CONTROL_TRANSFER_LENGTH: u32 = 0x7000;
+pub const RCM_LENGTH = 0x30298;
+pub const RCM_PAYLOAD_ADDR = 0x40010000;
+pub const HEADER_OFFSET = 0x2A8;
+pub const INTERMEZZO_ADDR = 0x4001F000;
+pub const PAYLOAD_LOAD_BLOCK = 0x40020000;
+pub const CONTROL_TRANSFER_LENGTH = 0x7000;
 pub const INTERMEZZO = [_]u8{
     0x44, 0x00, 0x9F, 0xE5,
     0x01, 0x11, 0xA0, 0xE3,
