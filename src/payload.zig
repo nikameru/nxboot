@@ -23,7 +23,7 @@ const intermezzo_addr: u32 = 0x4001F000;
 const rcm_payload_addr: u32 = 0x40010000;
 const addr_size = @sizeOf(u32);
 
-pub fn buildRcmPayloadFromFile(
+pub fn buildFromFile(
     allocator: Allocator,
     payload_file: std.fs.File,
 ) !struct { buf: []u8, size: usize } {

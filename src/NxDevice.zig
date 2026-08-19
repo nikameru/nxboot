@@ -1,10 +1,9 @@
-// TODO: Rewrite the API to surface abstraction for NxDevice, not libusb.
 const std = @import("std");
 const c = @cImport({
     @cInclude("libusb.h");
 });
 
-const log = std.log;
+const log = std.log.scoped(.nx_device);
 
 pub const Error = error{
     FailedToInit,
@@ -16,69 +15,68 @@ pub const Error = error{
     FailedToLaunchExploit,
 };
 
-const nx_vendor_id = 0x0955;
-const nx_product_id = 0x7321;
-const nx_usb_interface = 0;
-const nx_device_id_len = 16;
+const vendor_id = 0x0955;
+const product_id = 0x7321;
+const usb_interface = 0;
+const device_id_len = 16;
 const packet_size = 0x1000;
 const default_timeout_ms = 1000;
 const control_transfer_len = 0x7000;
 
 const Self = @This();
 
-usb_ctx: ?*c.libusb_context = null,
-nx_dev_handle: ?*c.libusb_device_handle = null,
+usb_ctx: *c.libusb_context,
+usb_handle: *c.libusb_device_handle,
 
-pub fn init() Error!Self {
+pub fn open() Error!Self {
     var usb_ctx: ?*c.libusb_context = null;
+
     if (c.libusb_init(&usb_ctx) != c.LIBUSB_SUCCESS) {
         return Error.FailedToInit;
     }
+    errdefer c.libusb_exit(usb_ctx.?);
 
-    return Self{ .usb_ctx = usb_ctx };
-}
-
-pub fn deinit(self: *Self) void {
-    if (self.nx_dev_handle) |handle| {
-        _ = c.libusb_release_interface(handle, nx_usb_interface);
-        c.libusb_close(handle);
-        self.nx_dev_handle = null;
-    }
-
-    c.libusb_exit(self.usb_ctx.?);
-    self.usb_ctx = null;
-}
-
-pub fn prepareNxDevice(self: *Self) Error!void {
-    const nx_dev_handle = c.libusb_open_device_with_vid_pid(
-        self.usb_ctx.?,
-        nx_vendor_id,
-        nx_product_id,
+    const usb_handle = c.libusb_open_device_with_vid_pid(
+        usb_ctx.?,
+        vendor_id,
+        product_id,
     );
 
-    if (nx_dev_handle) |handle| {
+    if (usb_handle) |handle| {
         errdefer c.libusb_close(handle);
 
         if (c.libusb_set_configuration(handle, 1) != c.LIBUSB_SUCCESS) {
             return Error.FailedToConfigure;
         }
 
-        if (c.libusb_claim_interface(handle, nx_usb_interface) != c.LIBUSB_SUCCESS) {
+        if (c.libusb_claim_interface(handle, usb_interface) != c.LIBUSB_SUCCESS) {
             return Error.FailedToClaimInterface;
         }
 
-        self.nx_dev_handle = handle;
+        return Self{
+            .usb_ctx = usb_ctx.?,
+            .usb_handle = handle,
+        };
     } else {
         return Error.FailedToOpenDevice;
     }
 }
 
-fn readNxDeviceId(self: *Self, buf: []u8) !void {
+pub fn close(self: *const Self) void {
+    if (c.libusb_release_interface(self.usb_handle, usb_interface) != c.LIBUSB_SUCCESS) {
+        log.warn("failed to release usb interface", .{});
+    }
+    c.libusb_close(self.usb_handle);
+
+    c.libusb_exit(self.usb_ctx);
+}
+
+fn readNxDeviceId(self: *const Self, buf: []u8) !void {
     var bytes_transferred: c_int = 0;
     const endpoint: u8 = c.LIBUSB_ENDPOINT_IN | 1;
 
     const res = c.libusb_bulk_transfer(
-        self.nx_dev_handle.?,
+        self.usb_handle,
         endpoint,
         buf.ptr,
         @intCast(buf.len),
@@ -91,7 +89,7 @@ fn readNxDeviceId(self: *Self, buf: []u8) !void {
     }
 }
 
-fn writePayloadInPackets(self: *Self, buf: []const u8) !usize {
+fn writePayloadInPackets(self: *const Self, buf: []const u8) !usize {
     const endpoint: u8 = c.LIBUSB_ENDPOINT_OUT | 1;
     var total_bytes_sent: usize = 0;
     var packets_sent: u8 = 0;
@@ -101,7 +99,7 @@ fn writePayloadInPackets(self: *Self, buf: []const u8) !usize {
         var bytes_sent: c_int = 0;
 
         const result = c.libusb_bulk_transfer(
-            self.nx_dev_handle.?,
+            self.usb_handle,
             endpoint,
             @constCast(&buf[total_bytes_sent]),
             @intCast(bytes_to_send),
@@ -129,12 +127,12 @@ fn writePayloadInPackets(self: *Self, buf: []const u8) !usize {
     return total_bytes_sent;
 }
 
-pub fn launchExploit(
-    self: *Self,
+pub fn inject(
+    self: *const Self,
     allocator: std.mem.Allocator,
     rcm_payload: []const u8,
 ) !void {
-    var dev_id_buf: [nx_device_id_len]u8 = undefined;
+    var dev_id_buf: [device_id_len]u8 = undefined;
     try self.readNxDeviceId(&dev_id_buf);
     log.info("read device id: {s}", .{std.fmt.bytesToHex(dev_id_buf, .lower)});
 
@@ -148,7 +146,7 @@ pub fn launchExploit(
 
     const bm_req_type: u8 = c.LIBUSB_ENDPOINT_IN | c.LIBUSB_REQUEST_TYPE_STANDARD | c.LIBUSB_RECIPIENT_INTERFACE;
     const result = c.libusb_control_transfer(
-        self.nx_dev_handle.?,
+        self.usb_handle,
         bm_req_type,
         0x00,
         0x00,

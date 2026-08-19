@@ -2,7 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const payload = @import("payload.zig");
-const Usb = @import("Usb.zig");
+const NxDevice = @import("NxDevice.zig");
 
 const log = std.log;
 
@@ -37,16 +37,14 @@ pub fn main() !void {
         return log.err("reading target payload file failed: {}", .{err});
     };
 
-    var usb = Usb.init() catch |err| {
-        return log.err("libusb init failed: {}", .{err});
-    };
-    defer usb.deinit();
-    usb.prepareNxDevice() catch |err| {
+    const nx_device = NxDevice.open() catch |err| {
         return log.err(
-            \\failed to prepare switch device: {}
+            \\failed to open switch device: {}
             \\check usb connection!
         , .{err});
     };
+    defer nx_device.close();
+
     log.info("switch device opened successfully", .{});
 
     var gpa: std.heap.GeneralPurposeAllocator(.{}) = .init;
@@ -58,20 +56,24 @@ pub fn main() !void {
         }
     }
 
-    const rcm_payload = try payload.buildRcmPayloadFromFile(allocator, payload_file);
+    const rcm_payload = try payload.buildFromFile(allocator, payload_file);
     defer allocator.free(rcm_payload.buf);
 
     if (builtin.mode == .Debug) {
-        const file = try std.fs.cwd().createFile(payload_debug_file_path, .{ .truncate = true });
+        const file = try std.fs.cwd().createFile(
+            payload_debug_file_path,
+            .{ .truncate = true },
+        );
         defer file.close();
+
         try file.writeAll(rcm_payload.buf[0..rcm_payload.size]);
 
         log.debug("wrote the rcm payload to {s}", .{payload_debug_file_path});
     }
 
-    usb.launchExploit(allocator, rcm_payload.buf[0..rcm_payload.size]) catch |err| {
+    nx_device.inject(allocator, rcm_payload.buf[0..rcm_payload.size]) catch |err| {
         return log.err("failed to launch exploit: {}", .{err});
     };
 
-    log.info("payload was run successfully!", .{});
+    log.info("payload has been run successfully!", .{});
 }
