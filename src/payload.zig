@@ -1,6 +1,10 @@
 const std = @import("std");
 
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
+
+const NxAddr = u32;
+const nx_addr_size = @sizeOf(NxAddr);
 
 const intermezzo = [_]u8{
     0x44, 0x00, 0x9F, 0xE5, 0x01, 0x11, 0xA0, 0xE3,
@@ -18,32 +22,32 @@ const intermezzo = [_]u8{
 };
 const rcm_len = 0x30298;
 const header_offset = 0x2A8;
-const payload_load_block = 0x40020000;
-const intermezzo_addr: u32 = 0x4001F000;
-const rcm_payload_addr: u32 = 0x40010000;
-const addr_size = @sizeOf(u32);
+const payload_load_block: NxAddr = 0x40020000;
+const intermezzo_addr: NxAddr = 0x4001F000;
+const rcm_payload_addr: NxAddr = 0x40010000;
 
 pub fn buildFromFile(
+    io: Io,
     allocator: Allocator,
-    payload_file: std.fs.File,
+    payload_file: Io.File,
 ) !struct { buf: []u8, size: usize } {
     const rcm_payload_buf = try allocator.alloc(u8, rcm_len);
     @memset(rcm_payload_buf, 0);
 
     std.mem.writeInt(
-        u32,
-        rcm_payload_buf[0..addr_size],
-        @as(u32, rcm_len),
+        NxAddr,
+        rcm_payload_buf[0..nx_addr_size],
+        @as(NxAddr, rcm_len),
         .little,
     );
 
-    const intermezzo_addr_count = (intermezzo_addr - rcm_payload_addr) / addr_size;
+    const intermezzo_addr_count = (intermezzo_addr - rcm_payload_addr) / nx_addr_size;
     for (0..intermezzo_addr_count) |i| {
-        const idx = header_offset + i * addr_size;
+        const idx = header_offset + i * nx_addr_size;
         std.mem.writeInt(
-            u32,
-            rcm_payload_buf[idx..][0..addr_size],
-            @as(u32, intermezzo_addr),
+            NxAddr,
+            rcm_payload_buf[idx..][0..nx_addr_size],
+            @as(NxAddr, intermezzo_addr),
             .little,
         );
     }
@@ -55,10 +59,12 @@ pub fn buildFromFile(
     );
 
     const payload_offset = intermezzo_offset + payload_load_block - intermezzo_addr;
-    const payload_file_size = try payload_file.getEndPos();
+    const payload_file_size = try payload_file.length(io);
     const bytes_to_read = @min(payload_file_size, rcm_payload_buf.len - payload_offset);
-    const bytes_read = try payload_file.readAll(
+    const bytes_read = try payload_file.readPositionalAll(
+        io,
         rcm_payload_buf[payload_offset .. payload_offset + bytes_to_read],
+        0,
     );
 
     const total_payload_size = payload_offset + bytes_read;

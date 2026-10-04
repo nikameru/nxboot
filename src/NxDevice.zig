@@ -1,7 +1,5 @@
 const std = @import("std");
-const c = @cImport({
-    @cInclude("libusb.h");
-});
+const c = @import("c");
 
 const log = std.log.scoped(.nx_device);
 
@@ -71,7 +69,7 @@ pub fn close(self: *const Self) void {
     c.libusb_exit(self.usb_ctx);
 }
 
-fn readNxDeviceId(self: *const Self, buf: []u8) !void {
+fn readId(self: *const Self, buf: []u8) !void {
     var bytes_transferred: c_int = 0;
     const endpoint: u8 = c.LIBUSB_ENDPOINT_IN | 1;
 
@@ -133,7 +131,7 @@ pub fn inject(
     rcm_payload: []const u8,
 ) !void {
     var dev_id_buf: [device_id_len]u8 = undefined;
-    try self.readNxDeviceId(&dev_id_buf);
+    try self.readId(&dev_id_buf);
     log.info("read device id: {s}", .{std.fmt.bytesToHex(dev_id_buf, .lower)});
 
     const total_bytes_sent = try self.writePayloadInPackets(rcm_payload);

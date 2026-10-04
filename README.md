@@ -1,10 +1,10 @@
 # nxboot
 
-CLI tool for Nintendo Switch RCM payload launching (Fusée Gelée). Uses Zig and libusb.
+A CLI tool for Nintendo Switch RCM payload launching (Fusée Gelée). Uses Zig and libusb.
 
 ## Requirements
 
-- Zig 0.15.2
+- Zig 0.17.0
 
 ## Usage
 
@@ -18,5 +18,5 @@ Note: with a Debug build (`-Doptimize=Debug`), resulting RCM payload buffer is a
 
 ## Credits
 
-- @ktemkin (exploit discovery)
-- Other implementations' authors
+- @ktemkin (exploit discovery), as well as other implementations' authors
+- @allyourcodebase (`build.zig` for libusb)

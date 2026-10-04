@@ -4,74 +4,66 @@ const builtin = @import("builtin");
 const payload = @import("payload.zig");
 const NxDevice = @import("NxDevice.zig");
 
+const Io = std.Io;
 const log = std.log;
 
 pub const std_options: std.Options = .{
     .log_level = switch (builtin.mode) {
-        .Debug => .debug,
+        .debug => .debug,
         else => .info,
     },
 };
 
 const payload_debug_file_path = "debug_payload.bin";
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
+    const io = init.io;
+    const gpa = init.gpa;
+    const args = init.minimal.args;
+
     log.info("nxboot (Zig {s})", .{builtin.zig_version_string});
 
-    var args_iter = std.process.args();
+    var args_iter = args.iterate();
     if (!args_iter.skip()) {
-        log.err("bad args!", .{});
-        return;
+        return log.err("bad args!", .{});
     }
     const payload_path = args_iter.next();
     if (payload_path == null) {
-        return log.err(
-            \\specify a payload file path! example:
-            \\
-            \\$ nxboot /path/to/payload.bin
-            \\
-        , .{});
+        log.err("specify a payload file path!", .{});
+
+        return log.info("example: $ nxboot /path/to/payload.bin", .{});
     }
 
-    const payload_file = std.fs.cwd().openFile(payload_path.?, .{}) catch |err| {
+    const payload_file = Io.Dir.cwd().openFile(io, payload_path.?, .{}) catch |err| {
         return log.err("reading target payload file failed: {}", .{err});
     };
 
     const nx_device = NxDevice.open() catch |err| {
-        return log.err(
-            \\failed to open switch device: {}
-            \\check usb connection!
-        , .{err});
+        log.err("failed to open switch device: {}", .{err});
+
+        return log.warn("check usb connection!", .{});
     };
     defer nx_device.close();
 
     log.info("switch device opened successfully", .{});
 
-    var gpa: std.heap.GeneralPurposeAllocator(.{}) = .init;
-    const allocator = gpa.allocator();
-    defer {
-        const check = gpa.deinit();
-        if (check == .leak) {
-            log.warn("leaked!", .{});
-        }
-    }
+    const rcm_payload = try payload.buildFromFile(io, gpa, payload_file);
+    defer gpa.free(rcm_payload.buf);
 
-    const rcm_payload = try payload.buildFromFile(allocator, payload_file);
-    defer allocator.free(rcm_payload.buf);
-
-    if (builtin.mode == .Debug) {
-        const file = try std.fs.cwd().createFile(
+    if (builtin.mode == .debug) {
+        const file = try Io.Dir.cwd().createFile(
+            io,
             payload_debug_file_path,
             .{ .truncate = true },
         );
-        defer file.close();
+        defer file.close(io);
 
-        try file.writeAll(rcm_payload.buf[0..rcm_payload.size]);
+        try file.writePositionalAll(io, rcm_payload.buf[0..rcm_payload.size], 0);
 
         log.debug("wrote the rcm payload to {s}", .{payload_debug_file_path});
     }
 
-    nx_device.inject(allocator, rcm_payload.buf[0..rcm_payload.size]) catch |err| {
+    nx_device.inject(gpa, rcm_payload.buf[0..rcm_payload.size]) catch |err| {
         return log.err("failed to launch exploit: {}", .{err});
     };
 

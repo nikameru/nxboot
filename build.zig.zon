@@ -1,12 +1,16 @@
 .{
     .name = .nxboot,
-    .version = "0.0.1",
+    .version = "0.1.0",
     .fingerprint = 0x2d37155fd1dc8e7a,
-    .minimum_zig_version = "0.15.2",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .libusb = .{
-            .url = "git+https://github.com/allyourcodebase/libusb#363c73885e5b04384bd4702605c613e67da45797",
-            .hash = "libusb-0.0.1-P02YQmeOFwBE3lScFnBmBaOrz-EKAMHX3r9YIDh7ZSul",
+            .url = "git+https://github.com/allyourcodebase/libusb.git#5c2dc368e90ec27a3300e9ceba3935f822a1299b",
+            .hash = "libusb-0.0.1-P02YQpOOFwBm-tD_-xOj5eVK-dlEJZ-ukpMyDGkslb9t",
+        },
+        .translate_c = .{
+            .url = "git+https://codeberg.org/ziglang/translate-c#875969d3493e245e01bf5d7860f792d8f3eb9ef5",
+            .hash = "translate_c-0.0.0-Q_BUWoFOBwAhz77Zd15HCVuhTKzdUKc94kezmCeJ7IC_",
         },
     },
     .paths = .{
